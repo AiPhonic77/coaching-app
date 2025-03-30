@@ -15,7 +15,7 @@ export default function CoachingTips() {
     { user: 'agent2', pass: 'abcd' },
   ];
 
-  // ✅ Funktion: speichert Tipp per POST auf Netlify
+  // ✅ Neue Funktion: speichert Tipp per POST auf Netlify
   const saveTipToNetlify = async (tipp) => {
     try {
       await axios.post('/.netlify/functions/saveTip', { tipp });
@@ -25,26 +25,27 @@ export default function CoachingTips() {
     }
   };
 
-  // 🔁 Holt alle 3 Sekunden neue Tipps von n8n und speichert sie live
+  // ⏱ Holt regelmäßig neue Tipps von n8n und speichert sie live
   useEffect(() => {
     if (!loggedIn) return;
 
     const interval = setInterval(async () => {
       try {
         const res = await axios.get('https://aiphonic.app.n8n.cloud/webhook/coaching-tip');
-        const parsed = JSON.parse(res.data.message.content || '{}');
 
         const neuerTipp = {
-          tipp: parsed.tipp || 'Kein Tipp erhalten',
+          phase: res.data.phase || '',
+          stimmung: res.data.stimmung || '',
+          tipp: res.data.tipp || res.data.message?.content || '',
           timestamp: new Date().toISOString(),
           agent,
         };
 
         setData(neuerTipp);
         setError(null);
-        await saveTipToNetlify(parsed.tipp);
+
+        await saveTipToNetlify(neuerTipp);
       } catch (err) {
-        console.error(err);
         setError('Keine Verbindung zum Coaching-System.');
       }
     }, 3000);
@@ -52,9 +53,10 @@ export default function CoachingTips() {
     return () => clearInterval(interval);
   }, [loggedIn, agent]);
 
+  // 🧠 UI
   return (
-    <div className="p-4 text-center">
-      <h1 className="text-xl font-bold mb-4">🎯 Live Coaching Tipp</h1>
+    <div className="p-4 text-center min-h-screen bg-gray-50">
+      <h1 className="text-2xl font-bold mb-4">🎯 Live Coaching Tipp</h1>
 
       {!loggedIn && (
         <div>
@@ -63,14 +65,14 @@ export default function CoachingTips() {
             placeholder="Benutzername"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            className="border p-2 m-1"
+            className="border p-2 m-1 rounded"
           />
           <input
             type="password"
             placeholder="Passwort"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="border p-2 m-1"
+            className="border p-2 m-1 rounded"
           />
           <button
             onClick={() => {
@@ -82,24 +84,33 @@ export default function CoachingTips() {
                 setError('Login fehlgeschlagen');
               }
             }}
-            className="bg-blue-500 text-white p-2 m-1"
+            className="bg-blue-500 hover:bg-blue-600 text-white p-2 m-1 rounded"
           >
             Login
           </button>
-          {error && <p className="text-red-500">{error}</p>}
+          {error && <p className="text-red-500 mt-2">{error}</p>}
         </div>
       )}
 
       {loggedIn && data && (
-        <div className="bg-white shadow rounded p-4 mt-4 max-w-xl mx-auto">
-          <p className="text-gray-800 text-lg">{data.tipp}</p>
-          <p className="text-sm text-gray-400 mt-2">👤 Agent: {agent}</p>
-          <p className="text-sm text-gray-400">🕒 {data.timestamp}</p>
+        <div className="bg-white shadow-xl rounded-2xl p-6 mt-6 max-w-xl mx-auto text-left transition-all duration-300">
+          <p className="text-lg mb-2"><strong>📌 Phase:</strong> {data.phase || '–'}</p>
+          <p className="text-lg mb-2"><strong>🎭 Stimmung:</strong> {data.stimmung || '–'}</p>
+          <p className="text-lg mb-2"><strong>💡 Tipp:</strong> {data.tipp || '–'}</p>
+
+          <div className="text-sm text-gray-400 mt-4 flex justify-between">
+            <span>👤 Agent: {agent}</span>
+            <span>🕒 {data.timestamp}</span>
+          </div>
         </div>
       )}
 
       {loggedIn && !data && (
-        <p className="text-red-500 mt-4">Lade Coaching-Daten...</p>
+        <p className="text-gray-500 mt-4">Lade Coaching-Daten...</p>
+      )}
+
+      {loggedIn && error && (
+        <p className="text-red-500 mt-4">{error}</p>
       )}
     </div>
   );
