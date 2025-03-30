@@ -15,35 +15,44 @@ export default function CoachingTips() {
     { user: 'agent2', pass: 'abcd' },
   ];
 
-  // ✅ Neue Funktion: speichert Tipp per POST auf Netlify
+  // Neue Funktion: speichert Tipp per POST auf Netlify
   const saveTipToNetlify = async (tipp) => {
     try {
       await axios.post('/.netlify/functions/saveTip', { tipp });
-      console.log('Tipp erfolgreich an Netlify gesendet');
+      console.log('Tipp erfolgreich gesendet');
     } catch (err) {
       console.error('Fehler beim Senden des Tipps an Netlify:', err);
     }
   };
 
-  // ⏱ Holt regelmäßig neue Tipps von n8n und speichert sie live
+  // Holt regelmäßig neue Tipps von n8n
   useEffect(() => {
     if (!loggedIn) return;
 
     const interval = setInterval(async () => {
       try {
-        const res = await axios.get('https://aiphonic.app.n8n.cloud/webhook/coaching-tip');
+        const res = await axios.get(
+          'https://aiphonic.app.n8n.cloud/webhook/coaching-tip'
+        );
+
+        // GPT-Antwort korrekt als JSON parsen
+        let gptAntwort;
+        try {
+          gptAntwort = JSON.parse(res.data.message?.content || '{}');
+        } catch (e) {
+          gptAntwort = {};
+        }
 
         const neuerTipp = {
-          phase: res.data.phase || '',
-          stimmung: res.data.stimmung || '',
-          tipp: res.data.tipp || res.data.message?.content || '',
+          phase: gptAntwort.phase || '',
+          stimmung: gptAntwort.stimmung || '',
+          tipp: gptAntwort.tipp || '',
           timestamp: new Date().toISOString(),
           agent,
         };
 
         setData(neuerTipp);
         setError(null);
-
         await saveTipToNetlify(neuerTipp);
       } catch (err) {
         setError('Keine Verbindung zum Coaching-System.');
@@ -53,10 +62,9 @@ export default function CoachingTips() {
     return () => clearInterval(interval);
   }, [loggedIn, agent]);
 
-  // 🧠 UI
   return (
     <div className="p-4 text-center min-h-screen bg-gray-50">
-      <h1 className="text-2xl font-bold mb-4">🎯 Live Coaching Tipp</h1>
+      <h1 className="text-2xl font-bold mb-4">🎯 <span className="text-black">Live Coaching Tipp</span></h1>
 
       {!loggedIn && (
         <div>
@@ -76,7 +84,9 @@ export default function CoachingTips() {
           />
           <button
             onClick={() => {
-              const found = validUsers.find(u => u.user === username && u.pass === password);
+              const found = validUsers.find(
+                (u) => u.user === username && u.pass === password
+              );
               if (found) {
                 setLoggedIn(true);
                 setAgent(username);
@@ -93,9 +103,9 @@ export default function CoachingTips() {
       )}
 
       {loggedIn && data && (
-        <div className="bg-white shadow-xl rounded-2xl p-6 mt-6 max-w-xl mx-auto text-left transition-all duration-300">
+        <div className="bg-white shadow-xl rounded-2xl p-6 mt-6 max-w-xl mx-auto text-left transition">
           <p className="text-lg mb-2"><strong>📌 Phase:</strong> {data.phase || '–'}</p>
-          <p className="text-lg mb-2"><strong>🎭 Stimmung:</strong> {data.stimmung || '–'}</p>
+          <p className="text-lg mb-2"><strong>😷 Stimmung:</strong> {data.stimmung || '–'}</p>
           <p className="text-lg mb-2"><strong>💡 Tipp:</strong> {data.tipp || '–'}</p>
 
           <div className="text-sm text-gray-400 mt-4 flex justify-between">
@@ -103,14 +113,6 @@ export default function CoachingTips() {
             <span>🕒 {data.timestamp}</span>
           </div>
         </div>
-      )}
-
-      {loggedIn && !data && (
-        <p className="text-gray-500 mt-4">Lade Coaching-Daten...</p>
-      )}
-
-      {loggedIn && error && (
-        <p className="text-red-500 mt-4">{error}</p>
       )}
     </div>
   );
