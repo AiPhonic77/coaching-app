@@ -1,0 +1,20 @@
+{
+	"geolocation": {
+		"data": {
+			"city": "Leipzig",
+			"country": {
+				"code": "DE",
+				"name": "Germany"
+			},
+			"subdivision": {
+				"code": "SN",
+				"name": "Saxony"
+			},
+			"timezone": "Europe/Berlin",
+			"latitude": 51.3671,
+			"longitude": 12.3817,
+			"postalCode": "04275"
+		},
+		"timestamp": 1743334427143
+	}
+}

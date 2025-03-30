@@ -1,0 +1,9 @@
+[build]
+  functions = "netlify/functions"
+  publish = "build"
+  command = "npm run build"
+
+[dev]
+  functions = "netlify/functions"
+  targetPort = 3000
+  command = "npm start"
