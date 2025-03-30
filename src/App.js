@@ -12,94 +12,95 @@ export default function CoachingTips() {
 
   const validUsers = [
     { user: 'agent1', pass: '1234' },
-    { user: 'agent2', pass: 'abcd' }
+    { user: 'agent2', pass: 'abcd' },
   ];
 
+  // ✅ Funktion: speichert Tipp per POST auf Netlify
+  const saveTipToNetlify = async (tipp) => {
+    try {
+      await axios.post('/.netlify/functions/saveTip', { tipp });
+      console.log('Tipp erfolgreich an Netlify gesendet');
+    } catch (err) {
+      console.error('Fehler beim Senden des Tipps an Netlify:', err);
+    }
+  };
+
+  // 🔁 Holt alle 3 Sekunden neue Tipps von n8n und speichert sie live
   useEffect(() => {
     if (!loggedIn) return;
 
     const interval = setInterval(async () => {
       try {
         const res = await axios.get('https://aiphonic.app.n8n.cloud/webhook/coaching-tip');
-        setData({ ...res.data, timestamp: new Date().toISOString(), agent });
+        const parsed = JSON.parse(res.data.message.content || '{}');
+
+        const neuerTipp = {
+          tipp: parsed.tipp || 'Kein Tipp erhalten',
+          timestamp: new Date().toISOString(),
+          agent,
+        };
+
+        setData(neuerTipp);
         setError(null);
+        await saveTipToNetlify(parsed.tipp);
       } catch (err) {
+        console.error(err);
         setError('Keine Verbindung zum Coaching-System.');
       }
-    }, 10000);
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [loggedIn, agent]);
 
-  const handleLogin = () => {
-    const match = validUsers.find(u => u.user === username && u.pass === password);
-    if (match) {
-      setAgent(username);
-      setLoggedIn(true);
-    } else {
-      setError('Falscher Benutzername oder Passwort');
-    }
-  };
+  return (
+    <div className="p-4 text-center">
+      <h1 className="text-xl font-bold mb-4">🎯 Live Coaching Tipp</h1>
 
-  if (!loggedIn) {
-    return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white shadow-xl rounded-2xl p-6 w-full max-w-sm">
-          <h2 className="text-xl font-bold mb-4 text-center">🔐 Login für Team</h2>
+      {!loggedIn && (
+        <div>
           <input
             type="text"
             placeholder="Benutzername"
-            className="w-full mb-3 px-3 py-2 border rounded"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            className="border p-2 m-1"
           />
           <input
             type="password"
             placeholder="Passwort"
-            className="w-full mb-4 px-3 py-2 border rounded"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            className="border p-2 m-1"
           />
           <button
-            onClick={handleLogin}
-            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+            onClick={() => {
+              const found = validUsers.find(u => u.user === username && u.pass === password);
+              if (found) {
+                setLoggedIn(true);
+                setAgent(username);
+              } else {
+                setError('Login fehlgeschlagen');
+              }
+            }}
+            className="bg-blue-500 text-white p-2 m-1"
           >
-            Einloggen
+            Login
           </button>
-          {error && <p className="text-red-500 text-center mt-3">{error}</p>}
+          {error && <p className="text-red-500">{error}</p>}
         </div>
-      </div>
-    );
-  }
+      )}
 
-  return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <div className="bg-white shadow-xl rounded-2xl p-6 w-full max-w-xl">
-        <h1 className="text-2xl font-bold mb-4 text-center">🎯 Live Coaching Tipp</h1>
+      {loggedIn && data && (
+        <div className="bg-white shadow rounded p-4 mt-4 max-w-xl mx-auto">
+          <p className="text-gray-800 text-lg">{data.tipp}</p>
+          <p className="text-sm text-gray-400 mt-2">👤 Agent: {agent}</p>
+          <p className="text-sm text-gray-400">🕒 {data.timestamp}</p>
+        </div>
+      )}
 
-        <p className="text-sm text-right text-gray-400">👤 Agent: {agent}</p>
-
-        {error && <p className="text-red-500 text-center">{error}</p>}
-
-        {data ? (
-          <div className="space-y-4 mt-4">
-            <div>
-              <p className="text-gray-500 text-sm">Phase:</p>
-              <p className="text-lg font-semibold">{data.phase}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Stimmung:</p>
-              <p className="text-lg font-semibold">{data.stimmung}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Tipp:</p>
-              <p className="text-lg text-blue-700 font-bold">{data.tipp}</p>
-            </div>
-          </div>
-        ) : (
-          <p className="text-gray-500 text-center">Lade Coaching-Daten...</p>
-        )}
-      </div>
+      {loggedIn && !data && (
+        <p className="text-red-500 mt-4">Lade Coaching-Daten...</p>
+      )}
     </div>
   );
 }
