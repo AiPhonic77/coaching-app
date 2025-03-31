@@ -1,7 +1,8 @@
 // Coaching Web-App (React + TailwindCSS) mit Login und Agent-Tracking
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import jsPDF from 'jspdf';
+// Füge jsPDF zu deiner package.json hinzu, wenn du es verwenden möchtest
+// import jsPDF from 'jspdf';
 
 export default function CoachingTipps() {
   const [tipps, setTipps] = useState([]);
@@ -10,6 +11,7 @@ export default function CoachingTipps() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [agent, setAgent] = useState('');
   const [error, setError] = useState(null);
+  const [lastFetchTime, setLastFetchTime] = useState(null);
 
   const validUsers = [
     { user: 'agent1', pass: '1234' },
@@ -18,7 +20,8 @@ export default function CoachingTipps() {
 
   const saveTippToNetlify = async (tipp) => {
     try {
-      await axios.post('/.netlify/functions/saveTipp', { tipp });
+      // Stelle sicher, dass der Name exakt mit deiner Netlify-Funktion übereinstimmt
+      await axios.post('/.netlify/functions/saveTip', { tipp });
       console.log('Tipp erfolgreich gesendet');
     } catch (err) {
       console.error('Fehler beim Senden des Tipps an Netlify:', err);
@@ -27,23 +30,52 @@ export default function CoachingTipps() {
 
   useEffect(() => {
     if (!loggedIn) return;
-    const interval = setInterval(async () => {
+    
+    const fetchTipps = async () => {
       try {
+        // Aktualisiere zu deiner korrekten n8n-Webhook-URL
         const res = await axios.get('https://aiphonic.app.n8n.cloud/webhook/coaching-tip');
-        const neuerTipp = {
-          phase: res.data.phase || '',
-          stimmung: res.data.stimmung || '',
-          tipp: res.data.tipp || res.data.message?.content || '',
-          timestamp: new Date().toISOString(),
-          agent,
-        };
-        setTipps((prev) => [neuerTipp, ...prev]);
-        await saveTippToNetlify(neuerTipp);
-        setError(null);
+        
+        // Füge console.log hinzu, um die Antwort zu debuggen
+        console.log('API-Antwort:', res.data);
+        setLastFetchTime(new Date().toLocaleTimeString());
+        
+        if (res.data) {
+          // Die Daten sind direkt in der Antwort, wie im n8n-Screenshot zu sehen
+          const neuerTipp = {
+            phase: res.data.phase || '',
+            stimmung: res.data.stimmung || '',
+            tipp: res.data.tipp || '',
+            timestamp: new Date().toISOString(),
+            agent,
+          };
+          
+          // Nur hinzufügen, wenn der Tipp Inhalt hat
+          if (neuerTipp.tipp.trim() !== '') {
+            setTipps((prev) => {
+              // Prüfen, ob wir bereits einen identischen Tipp haben
+              const isDuplicate = prev.some(tip => tip.tipp === neuerTipp.tipp);
+              if (isDuplicate) {
+                return prev; // Keine Änderung, wenn es ein Duplikat ist
+              }
+              return [neuerTipp, ...prev]; // Neuen Tipp hinzufügen
+            });
+            
+            await saveTippToNetlify(neuerTipp.tipp);
+          }
+          
+          setError(null);
+        }
       } catch (err) {
+        console.error('API-Fehler:', err);
         setError('Keine Verbindung zum Coaching-System.');
       }
-    }, 3000);
+    };
+    
+    // Initialer Abruf
+    fetchTipps();
+    
+    const interval = setInterval(fetchTipps, 3000);
     return () => clearInterval(interval);
   }, [loggedIn, agent]);
 
@@ -55,14 +87,18 @@ export default function CoachingTipps() {
   };
 
   const exportTipps = () => {
-    const doc = new jsPDF();
-    tipps.forEach((t, i) => {
-      doc.text(`Tipp #${i + 1}`, 10, 10 + i * 30);
-      doc.text(`Phase: ${t.phase}`, 10, 15 + i * 30);
-      doc.text(`Stimmung: ${t.stimmung}`, 10, 20 + i * 30);
-      doc.text(`Tipp: ${t.tipp}`, 10, 25 + i * 30);
-    });
-    doc.save("coaching-tipps.pdf");
+    // Wenn du jsPDF verwenden möchtest, füge es zu deiner package.json hinzu und entkommentiere den Import
+    // const doc = new jsPDF();
+    // tipps.forEach((t, i) => {
+    //   doc.text(`Tipp #${i + 1}`, 10, 10 + i * 30);
+    //   doc.text(`Phase: ${t.phase}`, 10, 15 + i * 30);
+    //   doc.text(`Stimmung: ${t.stimmung}`, 10, 20 + i * 30);
+    //   doc.text(`Tipp: ${t.tipp}`, 10, 25 + i * 30);
+    // });
+    // doc.save("coaching-tipps.pdf");
+    
+    // Alternativ verwende vorerst einen einfachen Export
+    alert('PDF Export Funktion erfordert jsPDF Bibliothek');
   };
 
   // UI Bereich
@@ -114,14 +150,26 @@ export default function CoachingTipps() {
 
           {error && <p className="text-red-600 mb-4">{error}</p>}
 
-          {tipps.map((t, index) => (
-            <div key={index} className={`rounded-xl p-4 shadow-md mb-4 text-left ${getStimmungClass(t.stimmung)}`}>
-              <p><strong>📌 Phase:</strong> {t.phase}</p>
-              <p><strong>😄 Stimmung:</strong> {t.stimmung}</p>
-              <p><strong>💡 Tipp:</strong> {t.tipp}</p>
-              <p className="text-sm text-gray-500">👤 Agent: {t.agent} | 🕒 {new Date(t.timestamp).toLocaleString()}</p>
-            </div>
-          ))}
+          {/* Debug Info */}
+          <div className="bg-gray-100 p-4 mb-4 text-left rounded">
+            <h3 className="font-bold">Debug Info:</h3>
+            <p>Agent: {agent}</p>
+            <p>Anzahl Tipps: {tipps.length}</p>
+            <p>Letzter API-Abruf: {lastFetchTime || 'Noch nicht abgerufen'}</p>
+          </div>
+
+          {tipps.length === 0 ? (
+            <p>Warte auf Coaching-Tipps...</p>
+          ) : (
+            tipps.map((t, index) => (
+              <div key={index} className={`rounded-xl p-4 shadow-md mb-4 text-left ${getStimmungClass(t.stimmung)}`}>
+                <p><strong>📌 Phase:</strong> {t.phase}</p>
+                <p><strong>😄 Stimmung:</strong> {t.stimmung}</p>
+                <p><strong>💡 Tipp:</strong> {t.tipp}</p>
+                <p className="text-sm text-gray-500">👤 Agent: {t.agent} | 🕒 {new Date(t.timestamp).toLocaleString()}</p>
+              </div>
+            ))
+          )}
         </>
       )}
     </div>
